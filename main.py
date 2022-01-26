@@ -7,7 +7,7 @@ if __name__ == "__main__":
 
     pcd = o3d.io.read_point_cloud(filename=original_point_cloud)
     """
-    Reads in "Original point cloud" from project folder as a point cloud file.
+    Reads in "Original point cloud" from project fold as a point cloud file.
     """
 
     downpcd = pcd.voxel_down_sample(voxel_size=.05)
