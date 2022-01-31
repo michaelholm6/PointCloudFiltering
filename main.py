@@ -12,6 +12,8 @@ if __name__ == "__main__":
     Reads in "Original point cloud" from project folder as a point cloud file.
     """
 
+    o3d.visualization.draw_geometries([pcd])
+
     downpcd = pcd.voxel_down_sample(voxel_size=.05)
     """
     Down sample the point cloud by taking voxels of side length "voxel_size" and averaging the position, color, 
