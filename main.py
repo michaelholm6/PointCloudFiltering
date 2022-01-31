@@ -1,5 +1,7 @@
-import numpy as np
 import open3d as o3d
+import pymeshlab as pml
+import bpy
+
 
 original_point_cloud = "Various Mesh Files/Original_point_cloud.ply"
 
@@ -30,68 +32,133 @@ if __name__ == "__main__":
     filtered point cloud and the index of all points that are removed.
     """
 
-    o3d.visualization.draw_geometries([cl])
-
     o3d.io.write_point_cloud(filename="Various Mesh Files/filtered_point_cloud.ply", pointcloud=cl)
     """
     Save filtered point cloud to the project folder as a point cloud.
     """
 
-    distances = cl.compute_nearest_neighbor_distance()
+    pmlMeshSet = pml.MeshSet()
     """
-    Computes the distance to the nearest neighbor for every point of the point cloud. Return a double vector, which is 
-    an Open3D class that is basically just a one dimensional array, but is special to Open3D.
-    """
-
-    avg_dist = np.mean(distances)
-    """
-    Calculates the average distance for each point to its closest neighbor. Returns an int.
+    Creates MeshLab instance to be operated on.
     """
 
-    radius = avg_dist
+    pmlMeshSet.load_new_mesh(file_name='Various Mesh Files/filtered_point_cloud.PLY')
     """
-    Size of the radius of the sphere used for the create_point_cloud_ball_pivoting function later in this script.
-    Smaller sphere means more accurate creation, but also more triangles.
-    """
-
-    o3d.geometry.PointCloud.estimate_normals(self=cl)
-    """
-    Estimates normals for the cl point cloud, by using the input point cloud. Some linear algebra stuff that I don't
-    understand. 
+    Loads PLY file into the MeshLab file.
     """
 
-    bpa_mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_ball_pivoting(pcd=cl, radii=o3d.utility.DoubleVector([radius*.8]))
+    pmlMeshSet.surface_reconstruction_ball_pivoting()
     """
-    Create a mesh by using F. Bernardini et al., “The ball-pivoting algorithm for surface reconstruction”, 1999 
-    workflow, which uses a ball of radius "radius" to form triangles. The ball is moved around the point cloud, and
-    anytime the ball touches three points, without touching any other points, a triangle is created. This is repeated
-    for all radius arguments in the DoubleVector argument.
+    Create a mesh by using F. Bernardini et al., “The ball-pivoting algorithm for surface reconstruction”, 1999
+    workflow, which uses a ball of default radius, defined by MeshLab, to form triangles. The ball is moved around the point cloud, and
+    anytime the ball touches three points, without touching any other points, a triangle is created. 
     """
 
-    o3d.visualization.draw_geometries([bpa_mesh])
-    o3d.io.write_triangle_mesh(filename="Various Mesh Files/test.stl", mesh=bpa_mesh)
+    pmlMeshSet.close_holes(maxholesize=25)
     """
-    Save the triangle mesh to the project folder in STL format
+    Closes all holes with "maxholesize" edges or less
+    """
+
+    pmlMeshSet.remove_isolated_pieces_wrt_face_num(mincomponentsize=1200)
+    """
+    Removes isolated components with less than 1200 faces.
+    """
+
+    pmlMeshSet.save_current_mesh('Various Mesh Files/cleaned_mesh.PLY')
+    """
+    Saving cleaned mesh to pass to Open3D for smoothing.
+    """
+
+    bpa_mesh = o3d.io.read_triangle_mesh('Various Mesh Files/cleaned_mesh.ply')
+    """
+    Reading in cleaned PyMeshLab mesh.
     """
 
     bpa_mesh = o3d.geometry.TriangleMesh.filter_smooth_simple(self=bpa_mesh, number_of_iterations=3)
     """
     Smooths the triangle mesh, using "number_of_iterations" for the number of times the filter is applied. Simple
-    neighbor average used, with this equation: 
+    neighbor average used, with this equation:
     vo=vi+∑n∈Nvn)/|N|+1, with vi being the input value, vo the output value, and N is the set of adjacent neighbours.
+    """
+
+    o3d.io.write_triangle_mesh("Various Mesh Files/smoothed_cleaned_mesh.ply", bpa_mesh)
+    """
+    Saves smoothed Open3D mesh for passing to PyMeshLab for face reduction.
+    """
+
+    pmlMeshSet.load_new_mesh(file_name='Various Mesh Files/smoothed_cleaned_mesh.ply')
+    """
+    Reading in smoothed mesh
+    """
+
+    pmlMeshSet.simplification_quadric_edge_collapse_decimation(targetfacenum=100000, preserveboundary=True, boundaryweight=5)
+    """
+    Reduces file to have "targetfacenum" faces. "Boundaryweight" defines how important boundary preservation is. Default is 1.
+    """
+
+    pmlMeshSet.save_current_mesh('Various Mesh Files/reduced_mesh.ply')
+    """
+    Saves reduced mesh for passing to Blender.
+    """
+
+    bpy.ops.import_mesh.ply(filepath='Various Mesh Files/reduced_mesh.ply')
+    """
+    Passing reduced_mesh into Blender instance. 
+    """
+
+    bpy.ops.object.modifier_add(type='SOLIDIFY')
+    """
+    Adds the solidify modifier. This modifier will convert the mesh from a surface to a solid. Blender automatically 
+    calculates normals, and does it very well. 
+    """
+
+    bpy.ops.object.modifier_apply(modifier="Solidify")
+    """
+    Applies the above solidify modifier to the imported object.
+    """
+
+    bpy.ops.object.select_all(action='DESELECT')
+    """
+    Deselects all objects in the scene. There is currently a default cube and the imported mesh in this scene.
+    """
+
+    bpy.data.objects['Cube'].select_set(True)
+    """
+    Selects the default cube that's still in the scene.
+    """
+
+    bpy.ops.object.delete(use_global=False, confirm=False)
+    """
+    Deletes only the selected object. "use-global" makes it delete only the selected object, and "confirm" set to false
+    suppresses any GUI from popping up. 
+    """
+
+    bpy.ops.object.select_all(action='DESELECT')
+    """
+    Deselects all objects in the scene.
+    """
+
+    bpy.data.objects['reduced_mesh'].select_set(True)
+    """
+    Selects the imported mesh.
+    """
+
+    bpy.ops.export_mesh.ply(filepath="Various Mesh Files/blender_thickened.ply", use_selection=True)
+    """
+    Exports the thickened mesh as a PLY file. "use_selections" causes the export to only export the selected object.
+    """
+
+    bpa_mesh = o3d.io.read_triangle_mesh('Various Mesh Files/blender_thickened.ply')
+    """
+    Reads in exported Blender mesh for visualization. 
     """
 
     bpa_mesh = o3d.geometry.TriangleMesh.compute_triangle_normals(self=bpa_mesh)
     """
-    Compute normals for the triangle mesh. Compares the triangle mesh to the input point cloud.
+    Compute normals for the triangle mesh. Uses the normals of the input as reference.
     """
 
     o3d.visualization.draw_geometries([bpa_mesh])
     """
-    Displays the created triangle mesh. Waits for the user to X out of the displayed image.
-    """
-
-    o3d.io.write_triangle_mesh(filename="Various Mesh Files/test_smoothed.stl", mesh=bpa_mesh)
-    """
-    Saves the triangle mesh to the project folder as an STL, after being smoothed. 
+    Displays the final created triangle mesh. Waits for the user to X out of the displayed image.
     """
