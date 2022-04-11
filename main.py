@@ -3,7 +3,7 @@ import pymeshlab as pml
 import bpy
 
 
-original_point_cloud = "Various Mesh Files/Original_point_cloud.ply"
+original_point_cloud = "Various Mesh Files/Input/MVP Point Clouds/pcd1.pcd"
 
 if __name__ == "__main__":
 
@@ -38,7 +38,7 @@ if __name__ == "__main__":
     """
 
     o3d.visualization.draw_geometries([cl])
-    o3d.io.write_point_cloud(filename="Various Mesh Files/filtered_point_cloud.ply", pointcloud=cl)
+    o3d.io.write_point_cloud(filename="Various Mesh Files/Output/filtered_point_cloud.ply", pointcloud=cl)
     """
     Save filtered point cloud to the project folder as a point cloud.
     """
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     Creates MeshLab instance to be operated on.
     """
 
-    pmlMeshSet.load_new_mesh(file_name='Various Mesh Files/filtered_point_cloud.PLY')
+    pmlMeshSet.load_new_mesh(file_name='Various Mesh Files/Output/filtered_point_cloud.PLY')
     """
     Loads PLY file into the MeshLab file.
     """
@@ -70,12 +70,12 @@ if __name__ == "__main__":
     Removes isolated components with less than 1200 faces.
     """
 
-    pmlMeshSet.save_current_mesh('Various Mesh Files/cleaned_mesh.PLY')
+    pmlMeshSet.save_current_mesh('Various Mesh Files/Output/cleaned_mesh.PLY')
     """
     Saving cleaned mesh to pass to Open3D for smoothing.
     """
 
-    bpa_mesh = o3d.io.read_triangle_mesh('Various Mesh Files/cleaned_mesh.ply')
+    bpa_mesh = o3d.io.read_triangle_mesh('Various Mesh Files/Output/cleaned_mesh.ply')
     """
     Reading in cleaned PyMeshLab mesh.
     """
@@ -87,12 +87,13 @@ if __name__ == "__main__":
     vo=vi+∑n∈Nvn)/|N|+1, with vi being the input value, vo the output value, and N is the set of adjacent neighbours.
     """
 
-    o3d.io.write_triangle_mesh("Various Mesh Files/smoothed_cleaned_mesh.ply", bpa_mesh)
+    o3d.visualization.draw_geometries([bpa_mesh])
+    o3d.io.write_triangle_mesh("Various Mesh Files/Output/smoothed_cleaned_mesh.ply", bpa_mesh)
     """
     Saves smoothed Open3D mesh for passing to PyMeshLab for face reduction.
     """
 
-    pmlMeshSet.load_new_mesh(file_name='Various Mesh Files/smoothed_cleaned_mesh.ply')
+    pmlMeshSet.load_new_mesh(file_name='Various Mesh Files/Output/smoothed_cleaned_mesh.ply')
     """
     Reading in smoothed mesh
     """
@@ -102,12 +103,12 @@ if __name__ == "__main__":
     Reduces file to have "targetfacenum" faces. "Boundaryweight" defines how important boundary preservation is. Default is 1.
     """
 
-    pmlMeshSet.save_current_mesh('Various Mesh Files/reduced_mesh.ply')
+    pmlMeshSet.save_current_mesh('Various Mesh Files/Output/reduced_mesh.ply')
     """
     Saves reduced mesh for passing to Blender.
     """
 
-    bpy.ops.import_mesh.ply(filepath='Various Mesh Files/reduced_mesh.ply')
+    bpy.ops.import_mesh.ply(filepath='Various Mesh Files/Output/reduced_mesh.ply')
     """
     Passing reduced_mesh into Blender instance. 
     """
@@ -149,12 +150,12 @@ if __name__ == "__main__":
     Selects the imported mesh.
     """
 
-    bpy.ops.export_mesh.ply(filepath="Various Mesh Files/blender_thickened.ply", use_selection=True)
+    bpy.ops.export_mesh.ply(filepath="Various Mesh Files/Output/blender_thickened.ply", use_selection=True)
     """
     Exports the thickened mesh as a PLY file. "use_selections" causes the export to only export the selected object.
     """
 
-    bpa_mesh = o3d.io.read_triangle_mesh('Various Mesh Files/blender_thickened.ply')
+    bpa_mesh = o3d.io.read_triangle_mesh('Various Mesh Files/Output/blender_thickened.ply')
     """
     Reads in exported Blender mesh for visualization. 
     """
