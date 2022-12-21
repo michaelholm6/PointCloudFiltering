@@ -1,9 +1,11 @@
 import open3d as o3d
+import pymeshlab
 import pymeshlab as pml
 import bpy
+import Point_cloud_statistics as pcs
 
 
-original_point_cloud = "Various Mesh Files/Input/MVP Point Clouds/pcd1.pcd"
+original_point_cloud = "Various Mesh Files/Input/RGB&3DpointClouds/MissilesRailScanningPointCloud/R5.ply"
 
 if __name__ == "__main__":
 
@@ -14,15 +16,10 @@ if __name__ == "__main__":
 
     o3d.visualization.draw_geometries([pcd])
 
-    downpcd = pcd.voxel_down_sample(voxel_size=.005)
-    """
-    Down sample the point cloud by taking voxels of side length "voxel_size" and averaging the position, color, 
-    and normals of all points in this voxel. All points in this voxel are deleted, and replaced with a single point.
-    Returns a filtered point cloud.
-    """
+    #pcs.graph_statistical_removal_and_PCA_variance(100, 50, 5, 5, point_cloud_file=pcd)
 
-    o3d.visualization.draw_geometries([downpcd])
-    cl, ind = downpcd.remove_statistical_outlier(nb_neighbors=50, std_ratio=1)
+
+    cl, ind = pcd.remove_statistical_outlier(nb_neighbors=2, std_ratio=1)
     """
     Remove statistical outliers by taking the average distance to the nearest "nb_neighbors" points, and comparing this
     to the general average of the point cloud. If the average distance lies more than "std_ratio" standard deviations
@@ -31,13 +28,19 @@ if __name__ == "__main__":
 
     o3d.visualization.draw_geometries([cl])
 
-    cl, ind = cl.remove_radius_outlier(nb_points=5, radius=1)
+
+    #pcs.graph_voxel_down_sample_and_file_size(50, 1000, point_cloud_file=cl)
+
+    cl = cl.voxel_down_sample(2)
+    #cl, ind = cl.remove_radius_outlier(nb_points=5, radius=1)
     """
     Remove points that have less than "nb_points" in a sphere of radius "radius" around them. Returns a tuple of a 
     filtered point cloud and the index of all points that are removed.
     """
 
     o3d.visualization.draw_geometries([cl])
+
+
     o3d.io.write_point_cloud(filename="Various Mesh Files/Output/filtered_point_cloud.ply", pointcloud=cl)
     """
     Save filtered point cloud to the project folder as a point cloud.
@@ -60,12 +63,13 @@ if __name__ == "__main__":
     anytime the ball touches three points, without touching any other points, a triangle is created. 
     """
 
-    pmlMeshSet.close_holes(maxholesize=25)
+    pmlMeshSet.close_holes(maxholesize=100000)
     """
     Closes all holes with "maxholesize" edges or less
     """
 
-    pmlMeshSet.remove_isolated_pieces_wrt_face_num(mincomponentsize=1200)
+
+    pmlMeshSet.remove_isolated_pieces_wrt_face_num(mincomponentsize=700)
     """
     Removes isolated components with less than 1200 faces.
     """
