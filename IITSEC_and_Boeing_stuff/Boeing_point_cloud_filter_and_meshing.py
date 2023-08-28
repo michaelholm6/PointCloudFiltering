@@ -1,9 +1,8 @@
 import open3d as o3d
+import Point_cloud_statistics_IITSEC as pcs
+import bpy
 import pymeshlab
 import pymeshlab as pml
-import bpy
-import Point_cloud_statistics_IITSEC as pcs
-
 
 original_point_cloud = "Various Mesh Files/Input/RGB&3DpointClouds/MissilesRailScanningPointCloud/R5.ply"
 
