@@ -1,9 +1,20 @@
 import Point_cloud_class as pcc
 
-test_cloud = pcc.PointCloud(pointCloudFilePath="3D_files/Point Clouds/pcd10.pcd")
-test_cloud.generate_gaussian_noise(mean=0, std_dev_distance_mult=3, noise_percent=0.2)
-test_cloud.generate_statistical_removal_and_PCA_variance_data(50, 10, 3, 5, 1, .00001)
-test_cloud.generate_statistical_removal_and_average_distance_data(50, 10, 3, 5, 1, .00001)
-test_cloud.generate_summary_statistic_data(50, 10, 3, 5, 1, .00001)
-test_cloud.evaluate_filter_parameters(method='Average distance')
-test_cloud.create_summary_subplots(method='PCA')
+if __name__ == "__main__":
+
+    pointCloudCollection = pcc.PointCloudDatabase('3D_files/MVP Point Clouds')
+    pointCloudCollection.record_point_cloud_information(folder_path='test')
+    
+    # test_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds\pcd1200.ply")
+    # test_cloud.generate_gaussian_noise(0, 3, .20, True)
+    # test_cloud.transform_noisy_cloud(show=True)
+    # test_cloud.generate_statistical_removal_and_average_distance_data(100, 10, 3, 8, 1, .00001)
+    # test_cloud.clean_noisy_cloud(method='Average distance')
+    # test_cloud.align_cleaned_cloud_and_original_cloud(show=True)
+
+    # test_cloud_stl = pcc.PointCloudStructure(stl_path='test.stl', stl_sample_points=1000)
+    # test_cloud_stl.generate_gaussian_noise(0, 3, .20, True)
+    # test_cloud_stl.transform_noisy_cloud(show=True)
+    # test_cloud_stl.generate_statistical_removal_and_average_distance_data(100, 10, 3, 8, 1, .00001)
+    # test_cloud_stl.clean_noisy_cloud(method='Average distance')
+    # test_cloud_stl.align_cleaned_cloud_and_original_cloud(show=True, voxel_size=2)
