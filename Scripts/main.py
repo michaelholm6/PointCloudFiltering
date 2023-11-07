@@ -1,9 +1,22 @@
 import Point_cloud_class as pcc
+import cProfile
+import pstats
+
+def main():
+        pointCloudCollection = pcc.PointCloudDatabase('3D_files/MVP Point Clouds')
+        pointCloudCollection.record_point_cloud_information(folder_path='test')
 
 if __name__ == "__main__":
+    
+    main()
 
-    pointCloudCollection = pcc.PointCloudDatabase('3D_files/MVP Point Clouds')
-    pointCloudCollection.record_point_cloud_information(folder_path='test')
+    # cProfile.run('main()', 'my_func_stats')
+    
+    # stream = open('output.txt', 'w')
+    # p = pstats.Stats("my_func_stats", stream=stream)
+    # p.sort_stats("cumulative").print_stats()
+        
+    
     
     # test_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds\pcd1200.ply")
     # test_cloud.generate_gaussian_noise(0, 3, .20, True)
