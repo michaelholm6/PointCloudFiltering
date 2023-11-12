@@ -3,7 +3,9 @@ import cProfile
 import pstats
 
 def main():
-        pointCloudCollection = pcc.PointCloudDatabase('3D_files/MVP Point Clouds')
+        pointCloudCollection = pcc.PointCloudDatabase('3D_files/MVP Point Clouds', noise_mean=0, std_dev_distance_mult=3, noise_percent=.2, nb_neighbors_upper=100, \
+                                                      nb_neighbors_samples=10, std_dev_upper=3, std_dev_samples= 5,\
+                                                          nb_neighbors_lower=1, std_dev_lower=.00001)
         pointCloudCollection.record_point_cloud_information(folder_path='test')
 
 if __name__ == "__main__":
