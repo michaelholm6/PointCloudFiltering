@@ -9,7 +9,9 @@ import os
 import glob
 import pandas as pd
 from sklearn.neighbors import NearestNeighbors
-import matplotlib.ticker as ticker
+from openpyxl import Workbook, load_workbook
+import openpyxl.styles as styles
+from datetime import datetime
 
 class PointCloudStructure: 
     def __init__(self, pointCloud: o3d.geometry.PointCloud = None, pointCloudFilePath: str = None, stl_path: str = None, stl_sample_points: int = None, show = False) -> None:
@@ -55,6 +57,7 @@ class PointCloudStructure:
         
         if show:
             print("Showing original point cloud")
+            self.PointCloud.paint_uniform_color([0.4, 0.4, 0.6])
             o3d.visualization.draw_geometries([self.PointCloud])
     
     def generate_statistical_removal_and_PCA_variance_data(self, nb_neighbor_upper: int, nb_neighbors_samples: int, std_dev_upper: float,
@@ -176,25 +179,32 @@ class PointCloudStructure:
         self.nb_neighbor_points_ad, self.std_dev_points_ad = np.meshgrid(self.nb_neighbor_points_ad, self.std_dev_points_ad)
         
         if graph == True:
+            
             ax = plt.axes(projection='3d')
-            ax.plot_surface(self.nb_neighbor_points_ad, self.std_dev_points_ad, np.transpose(self.average_distance_data),
+            ax.plot_surface(self.nb_neighbor_points_ad, self.std_dev_points_ad, np.transpose(self.average_distance_data) * 10**4,
                                 cmap=cm.coolwarm,
                                 linewidth=0, antialiased=False)
-            ax.set_title('Average Distance Between Points')
+            ax.set_title('Average Nearest Neighbor Distance')
             ax.set_xlabel('Number of neighbors')
             ax.set_ylabel('Standard deviation')
-            ax.set_zlabel('Average distance')
+            ax.set_zlabel('Average distance * 1e4')
+            ax.scatter(self.best_nb_neighbors_mean, self.best_std_dev_mean, self.best_mean_distance * 10**4, s=50, c='r', marker = '*', zorder = 100)
+            ax.yaxis.labelpad=10
+            ax.xaxis.labelpad=10
+            ax.zaxis.labelpad=10
+            ax.xaxis.set_major_locator(plt.MaxNLocator(5))
+            ax.zaxis.set_major_locator(plt.MaxNLocator(5))
             plt.show()
         return
     
-    def generate_gaussian_noise(self, mean: float, std_dev_distance_mult: float, noise_percent: float, show: bool = False) -> None:
+    def generate_gaussian_noise(self, mean: float, bounding_box_mult: float, noise_percent: float, show: bool = False) -> None:
         """Generates Gaussian distributed noise for a point cloud.
 
         Args:
             mean (float):  Mean distance the noise moves from the original point.
-            std_dev_distance_mult (float): Standard deviation for the normal distribution that decides how much to move
-            a true point by. Measured by taking this argument and multiplying it by the average distance 
-            between points in the point cloud.
+            bounding_box_mult (float): Standard deviation for the normal distribution that decides how much to move
+            a true point by. Measured by taking this argument and multiplying it by the square root of the sum
+            of the squares of the bounding box sizes of the original point cloud
             noise_percent (float): What percentage of points are moved from their original location.
             show (bool, optional): Whether or not to show the noisy point cloud, with noise points in red and correct points in gray. Defaults to False.
         """    
@@ -203,7 +213,7 @@ class PointCloudStructure:
             noise_cloud = cloud.select_by_index(ind)
             correct_cloud = cloud.select_by_index(ind, invert=True)
             noise_cloud.paint_uniform_color([1, 0, 0])
-            correct_cloud.paint_uniform_color([0.8, 0.8, 0.8])
+            correct_cloud.paint_uniform_color([0.4, 0.4 , 0.6])
             print("Showing noissy point cloud.")
             print('Noise points are shown in red, correct points are shown in gray.')
             o3d.visualization.draw_geometries([noise_cloud, correct_cloud])
@@ -213,8 +223,11 @@ class PointCloudStructure:
         noise_counter = 0
         pcd = self.PointCloud
         points = copy.copy(np.asarray(self.PointCloud.points))
-        distance = np.mean(o3d.geometry.PointCloud.compute_nearest_neighbor_distance(pcd))
-        std_dev = distance*std_dev_distance_mult
+        original_max_bounds = self.PointCloud.get_max_bound()
+        original_min_bounds = self.PointCloud.get_min_bound()
+        self.original_ranges = np.asarray(original_max_bounds) - np.asarray(original_min_bounds)
+        bounding_box_magnitude = np.sqrt(np.sum(self.original_ranges ** 2))
+        std_dev = bounding_box_magnitude*bounding_box_mult
         for i in range(len(points)):
             if random.random() <= noise_percent:
                 self.noise_indeces.append(i)
@@ -305,23 +318,21 @@ class PointCloudStructure:
             o3d.visualization.draw_geometries([cleaned_cloud])
         
         if evaluation_method == "Summary statistic":
-        
             noise_counter_filtered = 0
-            for point in range(np.size(clean_array, 0)):
-                if ind.count(point) == 1:
-                    if (noisy_array[point] - clean_array[point] != [0, 0, 0]).any():
-                         noise_counter_filtered += 1
-
+            for index in ind:
+                if not (noisy_array[index] == clean_array[index]).all():
+                        noise_counter_filtered += 1
             noise_points_removed = self.noise_counter -  noise_counter_filtered
             total_points_removed = self.original_number_of_points - len(ind)
+            average_point_distance = np.mean(o3d.geometry.PointCloud.compute_nearest_neighbor_distance(self.PointCloud))
+            if self.noise_counter == 0 or (noise_points_removed + total_points_removed == 0) or self.original_number_of_points == 0 or np.size(clean_array, 0) == 0 or average_point_distance == 0:
+                return np.nan
             noise_detection_rate = noise_points_removed / self.noise_counter * 100
             correct_points_removed = total_points_removed - noise_points_removed
             correct_points_left = self.original_number_of_points - self.noise_counter - (total_points_removed - noise_points_removed)
-            average_point_distance = np.mean(o3d.geometry.PointCloud.compute_nearest_neighbor_distance(self.PointCloud))
             recall = noise_points_removed / (noise_points_removed + correct_points_removed) * 100
-            accuracy = (noise_points_removed + correct_points_left) / (2048) * 100
+            accuracy = (noise_points_removed + correct_points_left) / (self.original_number_of_points) * 100
             RMSE = np.sqrt(np.sum((clean_array[ind] - cleaned_cloud.points) ** 2) / np.size(clean_array, 0))/average_point_distance
-
             if show_images == True:
                 print('recall: ' + str(recall) + '%')
                 print('accuracy: ' + str(accuracy) + '%')
@@ -337,7 +348,7 @@ class PointCloudStructure:
                 return recall, accuracy, noise_detection_rate, RMSE
             
             else:
-                print('RMSE was zero for nb_neighbors = ' + str(nb_neighbors) + ' and std_ratio = ' + str(std_ratio) + '.')
+                # print('RMSE was zero for nb_neighbors = ' + str(nb_neighbors) + ' and std_ratio = ' + str(std_ratio) + '.')
                 return np.nan
             
         elif evaluation_method == "Chamfer distance":
@@ -383,9 +394,7 @@ class PointCloudStructure:
                     self.best_nb_neighbors_ss = self.nb_neighbor_points_ss[i]
                     self.best_std_dev_ss = self.std_dev_points_ss[j]
         self.nb_neighbor_points_ss, self.std_dev_points_ss = np.meshgrid(self.nb_neighbor_points_ss, self.std_dev_points_ss)
-        
         self.optimal_filtered_cloud_ss, _ = self.noisy_cloud.remove_statistical_outlier(self.best_nb_neighbors_ss, self.best_std_dev_ss)
-        
         if graph == True:
             print('Graphing summary statistic over input domain')
             ax = plt.axes(projection='3d')
@@ -449,7 +458,7 @@ class PointCloudStructure:
             plt.show()
         return
 
-    def create_summary_subplots(self, method: str, show: bool = False, save_path: str = False, name: str = None):
+    def create_summary_subplots(self, method: str, show: bool = False, save_path: str = False, name: str = None, number: int = 1):
         """Creates a matplotlib figure with 8 subplots. The first subplot is the original point cloud. The second subplot is the noisy point cloud.
         The third subplot is a graph representing output from either the average distance method or 
         the PCA method, depending on which method is selected. The fourth subplot is a graph
@@ -496,11 +505,11 @@ class PointCloudStructure:
         ax = fig.add_subplot(2,4,2, projection='3d')
         (ax).set_title('Noisy Point Cloud')
         point_cloud_points = np.asarray(self.noisy_cloud.points)
-        (ax).scatter(point_cloud_points[self.noise_indeces,0], point_cloud_points[self.noise_indeces,1], point_cloud_points[self.noise_indeces,2], s=.5, c='r')
+        (ax).scatter(point_cloud_points[self.noise_indeces,0], point_cloud_points[self.noise_indeces,1], point_cloud_points[self.noise_indeces,2], s=.01, c='r')
         noise_mask = np.ones(len(point_cloud_points), dtype=bool)
         noise_mask[self.noise_indeces] = False
         non_noise = point_cloud_points[noise_mask]
-        (ax).scatter(non_noise[: ,0], non_noise[: ,1], non_noise[: ,2], s=.5, c=[[.7,.7,.7]])
+        (ax).scatter(non_noise[: ,0], non_noise[: ,1], non_noise[: ,2], s=.5)
         ax.set_aspect('equal', adjustable='box')
         ax.set_yticklabels([])
         ax.set_xticklabels([])
@@ -511,13 +520,14 @@ class PointCloudStructure:
         
         if method == 'PCA':
         
-            ax = fig.add_subplot(2,4,3, projection='3d')
+            ax = fig.add_subplot(2,4,3, projection='3d', computed_zorder=False)
             ax.set_title('Principal Component\nLeast Variance Ratio')
-            ax.plot_surface(self.std_dev_points_pca, self.nb_neighbor_points_pca, np.transpose(self.explained_variance_ratio_data[2, :, :] * 10**3),
+            ax.plot_surface(self.nb_neighbor_points_pca, self.std_dev_points_pca, np.transpose(self.explained_variance_ratio_data[2, :, :] * 10**3),
                                     cmap=cm.coolwarm,
-                                    linewidth=0, antialiased=False)
-            ax.set_xlabel('Standard deviation ratio')
-            ax.set_ylabel('Number of neighbors')
+                                    linewidth=0, antialiased=False, zorder = 0)
+            #ax.scatter(self.best_nb_neighbors_PCA, self.best_std_dev_PCA, self.best_least_variance_ratio * 10**3, s=50, c='r', marker = '*', zorder = 100)
+            ax.set_ylabel('Standard ratio')
+            ax.set_xlabel('Number of neighbors')
             ax.set_zlabel('Variance ratio * 1e3')
             ax.view_init(azim=290, elev=30)
             ax.yaxis.labelpad=labelpad
@@ -530,13 +540,14 @@ class PointCloudStructure:
             
         elif method == 'Average distance':
         
-            ax = fig.add_subplot(2,4,3, projection='3d')
+            ax = fig.add_subplot(2,4,3, projection='3d', computed_zorder=False)
             ax.plot_surface(self.nb_neighbor_points_ad, self.std_dev_points_ad, np.transpose(self.average_distance_data) * 10**4,
                                 cmap=cm.coolwarm,
-                                linewidth=0, antialiased=False)
-            ax.set_title('Average Distance\n Between Points')
+                                linewidth=0, antialiased=False, zorder = 0)
+           # ax.scatter(self.best_nb_neighbors_mean, self.best_std_dev_mean, self.best_mean_distance * 10**4, s=50, c='r', marker = '*', zorder = 100)
+            ax.set_title('Nearest Neighbor Average Distance')
             ax.set_xlabel('Number of neighbors')
-            ax.set_ylabel('Standard deviation')
+            ax.set_ylabel('Standard ratio')
             ax.set_zlabel('Average distance * 1e4')
             ax.view_init(azim=290, elev=30)
             ax.yaxis.labelpad=labelpad
@@ -547,15 +558,16 @@ class PointCloudStructure:
             
         #Graphing summary statistic over input domain
             
-        ax = fig.add_subplot(2,4,4, projection='3d')
+        ax = fig.add_subplot(2,4,4, projection='3d', computed_zorder=False)
         ax.set_title('Summary Statistic\n over Input Domain')
         ax.plot_surface(self.nb_neighbor_points_ss, self.std_dev_points_ss, np.transpose(self.summary_statistic_data),
                             cmap=cm.coolwarm,
                             linewidth=0, antialiased=False)
         ax.set_title('Summary statistic over input domain')
         ax.set_xlabel('Number of neighbors')
-        ax.set_ylabel('Standard deviation')
+        ax.set_ylabel('Standard ratio')
         ax.set_zlabel('Summary statistic')
+        ax.scatter(self.best_nb_neighbors_ss, self.best_std_dev_ss, self.best_summary_statistic, s=50, c='r', marker = '*', zorder = 100)
         ax.view_init(azim=60, elev=20)  
         ax.xaxis.set_major_locator(plt.MaxNLocator(5))
         ax.zaxis.set_major_locator(plt.MaxNLocator(5))  
@@ -607,7 +619,7 @@ class PointCloudStructure:
         
         #Graphing chamfer distance over input domain
             
-        ax = fig.add_subplot(2,4,8, projection='3d')
+        ax = fig.add_subplot(2,4,8, projection='3d', computed_zorder=False)
         ax.plot_surface(self.nb_neighbor_points_pca_chamfer_distance, self.std_dev_points_pca_chamfer_distance, np.transpose(self.chamfer_distance_data) * 10**4,
                             cmap=cm.coolwarm,
                             linewidth=0, antialiased=False)
@@ -615,6 +627,7 @@ class PointCloudStructure:
         ax.set_xlabel('Number of neighbors')
         ax.set_ylabel('Standard deviation')
         ax.set_zlabel('Chamfer distance * 1e4')
+        ax.scatter(self.best_nb_neighbors_chamfer_distance, self.best_std_dev_chamfer_distance, self.best_chamfer_distance * 10**4, s=50, c='r', marker = '*', zorder = 100)
         ax.view_init(azim=140, elev=20)    
         ax.yaxis.labelpad=labelpad
         ax.xaxis.labelpad=labelpad
@@ -651,12 +664,14 @@ class PointCloudStructure:
         if save_path:
             if not os.path.exists(os.path.join(save_path, 'summary_subplots', name)):
                 os.makedirs(os.path.join(save_path, 'summary_subplots', name))
-            plt.savefig(os.path.join(save_path, 'summary_subplots', name, 'summary_figure_' + method), dpi=300)
             if method == 'PCA':
-                self.PCA_summary_subplots_filepath = os.path.join(os.getcwd(), save_path, 'summary_subplots', name, 'summary_figure_' + method + '.png')
+                self.PCA_summary_subplots_filepath = os.path.join(os.getcwd(), save_path, 'summary_subplots', name, 'summary_figure_' + f"{method}_{number}" + '.png')
             elif method == 'Average distance':
                 method = 'average_distance'
-                self.average_distance_summary_subplots_filepath = os.path.join(os.getcwd(), save_path, 'summary_subplots', name, 'summary_figure_' + method + '.png')
+                self.average_distance_summary_subplots_filepath = os.path.join(os.getcwd(), save_path, 'summary_subplots', name, 'summary_figure_' + f"{method}_{number}" + '.png')
+            plt.savefig(os.path.join(save_path, 'summary_subplots', name, 'summary_figure_' + f"{method}_{number}"), dpi=300)
+
+        plt.close()
 
     def transform_noisy_cloud(self, transformation:list[float] = [[0.0, 0.0, 1.0, 0.0], [1.0, 0.0, 0.0, 0.0],
             [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]], show: bool = False) -> None:
@@ -709,6 +724,7 @@ class PointCloudStructure:
         pcd_noisy = copy.copy(self.noisy_cloud)
         self.cleaned_cloud, ind = pcd_noisy.remove_statistical_outlier(nb_neighbors, std_ratio)
         if show == True:
+            self.cleaned_cloud.paint_uniform_color([0.4, 0.4, 0.6])
             print("Showing noisy point cloud")
             o3d.visualization.draw_geometries([pcd_noisy])
             print("Showing filtered point cloud")
@@ -823,9 +839,9 @@ class PointCloudStructure:
             new_row = {'Summary figure filepath': self.PCA_summary_subplots_filepath, 
                        'Average distance to nearest neighbor in original cloud': self.original_cloud_average_distance, 
                        'Smallest ratio of PCA variance in original cloud': self.original_lowest_variance_ratio,
-                       'Percent error in summary statistic': self.PCA_summary_statistic_error, 'Filter RMSE': self.PCA_RMSE, 
+                       'Filter RMSE': self.PCA_RMSE, 
                        'Filter Recall': self.PCA_recall, 'Filter Accuracy': self.PCA_accuracy, 'Filter Precision': self.PCA_precision, 
-                       'Percent error in chamfer distance': self.PCA_chamfer_distance_error, 'Points in original cloud': self.original_number_of_points, 
+                       'Percent error in summary statistic': self.PCA_summary_statistic_error, 'Percent error in chamfer distance': self.PCA_chamfer_distance_error, 'Points in original cloud': self.original_number_of_points, 
                        'Points in optimal filtered cloud': self.best_PCA_filter_number_of_points, 'Original range x': self.original_ranges[0], 
                        'Filtered range x': self.PCA_filtered_ranges[0], 'Original range y': self.original_ranges[1],
                        'Filtered range y': self.PCA_filtered_ranges[1], 'Original range z': self.original_ranges[2], 'Filtered range z': self.PCA_filtered_ranges[2], 
@@ -834,8 +850,9 @@ class PointCloudStructure:
             new_row = {'Summary figure filepath': self.average_distance_summary_subplots_filepath, 
                        'Average distance to nearest neighbor in original cloud': self.original_cloud_average_distance, 
                        'Smallest ratio of PCA variance in original cloud': self.original_lowest_variance_ratio,
-                       'Percent error in summary statistic': self.average_distance_summary_statistic_error, 'Filter RMSE': self.Average_distance_RMSE, 
+                       'Filter RMSE': self.Average_distance_RMSE, 
                        'Filter Recall': self.Average_distance_recall, 'Filter Accuracy': self.Average_distance_accuracy, 'Filter Precision': self.Average_distance_precision, 
+                       'Percent error in summary statistic': self.average_distance_summary_statistic_error,
                        'Percent error in chamfer distance': self.average_distance_chamfer_distance_error, 'Points in original cloud': self.original_number_of_points, 
                        'Points in optimal filtered cloud': self.best_average_distance_filter_number_of_points, 'Original range x': self.original_ranges[0], 
                        'Filtered range x': self.Average_distance_filtered_ranges[0],  'Original range y': self.original_ranges[1],
@@ -886,34 +903,95 @@ class PointCloudDatabase:
         self.nb_neighbor_lower = nb_neighbors_lower
         self.std_dev_lower = std_dev_lower
         
-    def record_point_cloud_information(self, folder_path: str) -> None:
+    def record_point_cloud_information(self, folder_path: str, runs_per_cloud: int = 10, clouds_to_select = 30) -> None:
+        #random.seed(datetime.now().timestamp())
+        
         point_cloud_files = glob.glob(os.path.join(self.point_cloud_folder, '*.ply'))
         
-        point_cloud_dataframe = pd.DataFrame(columns = ['Summary figure filepath',
+        point_cloud_files = list(point_cloud_files)
+        random.shuffle(point_cloud_files)
+        
+        #interesting_points_clouds = ['pcd98.ply', 'pcd157.ply', 'pcd2078.ply']
+        
+        #point_cloud_files = [x for x in point_cloud_files if os.path.basename(os.path.normpath(x)) in interesting_points_clouds]
+               
+        if not os.path.exists(folder_path): 
+            os.makedirs(folder_path)
+        
+        greenFill = styles.PatternFill(start_color='00FF00',
+                   end_color='00FF00',
+                   fill_type='solid')
+        redFill = styles.PatternFill(start_color='FF0000',
+            end_color='FF0000',
+            fill_type='solid')
+        yellowFill = styles.PatternFill(start_color='FFFF00',
+            end_color='FFFF00',
+            fill_type='solid')
+        
+        if not os.path.exists(os.path.join(folder_path, "Point_cloud_data.xlsx")):
+            wb = Workbook()
+            wb.save(os.path.join(folder_path, "Point_cloud_data.xlsx"))
+        
+        for point_cloud_file in point_cloud_files[0:clouds_to_select]:
+            point_cloud_dataframe = pd.DataFrame(columns = ['Summary figure filepath',
                        'Average distance to nearest neighbor in original cloud', 
                        'Smallest ratio of PCA variance in original cloud',
                         'Filter RMSE', 'Filter Recall', 'Filter Accuracy', 'Filter Precision', 
                         'Percent error in summary statistic', 'Percent error in chamfer distance', 
                         'Points in original cloud', 'Points in optimal filtered cloud', 'Original range x',
                         'Filtered range x', 'Original range y', 'Filtered range y', 'Original range z', 'Filtered range z', 'Filter Method'])
-        
-        for point_cloud_file in (list(point_cloud_files)):
-            pointCloudData = PointCloudStructure(pointCloudFilePath=str(point_cloud_file))
-            pointCloudData.generate_gaussian_noise(self.noise_mean, self.std_dev_distance_mult, self.noise_percent)
-            pointCloudData.generate_statistical_removal_and_PCA_variance_data(self.nb_neighbors_upper, self.nb_neighbors_samples, self.std_dev_upper, self.std_dev_samples, \
-                self.nb_neighbor_lower, self.std_dev_lower)
-            pointCloudData.generate_statistical_removal_and_average_distance_data(self.nb_neighbors_upper, self.nb_neighbors_samples, self.std_dev_upper, self.std_dev_samples, \
-                self.nb_neighbor_lower, self.std_dev_lower)
-            pointCloudData.generate_summary_statistic_data(self.nb_neighbors_upper, self.nb_neighbors_samples, self.std_dev_upper, self.std_dev_samples, \
-                self.nb_neighbor_lower, self.std_dev_lower)
-            pointCloudData.generate_chamfer_distance_data(self.nb_neighbors_upper, self.nb_neighbors_samples, self.std_dev_upper, self.std_dev_samples, \
-                self.nb_neighbor_lower, self.std_dev_lower)
-            pointCloudData.create_summary_subplots(method='Average distance', save_path = folder_path, name=os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0])))
-            pointCloudData.create_summary_subplots(method='PCA', save_path = folder_path, name=os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0])))
-            pointCloudData.generate_bounding_box_information()
-            point_cloud_dataframe = pointCloudData.record_CSV_data(point_cloud_dataframe, 'PCA')
-            point_cloud_dataframe = pointCloudData.record_CSV_data(point_cloud_dataframe, 'Average distance')
-            point_cloud_dataframe.to_csv(os.path.join(folder_path, 'point_cloud_data.csv'))
+            for i in range(runs_per_cloud):
+                pointCloudData = PointCloudStructure(pointCloudFilePath=str(point_cloud_file))
+                pointCloudData.generate_gaussian_noise(self.noise_mean, self.std_dev_distance_mult, self.noise_percent)
+                pointCloudData.generate_statistical_removal_and_PCA_variance_data(self.nb_neighbors_upper, self.nb_neighbors_samples, self.std_dev_upper, self.std_dev_samples, \
+                    self.nb_neighbor_lower, self.std_dev_lower)
+                pointCloudData.generate_statistical_removal_and_average_distance_data(self.nb_neighbors_upper, self.nb_neighbors_samples, self.std_dev_upper, self.std_dev_samples, \
+                    self.nb_neighbor_lower, self.std_dev_lower)
+                pointCloudData.generate_summary_statistic_data(100, 64, 3, 64, 1, .00001)
+                pointCloudData.generate_chamfer_distance_data(100, 64, 3, 64, 1, .00001)
+                pointCloudData.create_summary_subplots(method='Average distance', save_path = folder_path, name=os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0])), number=i+1)
+                pointCloudData.create_summary_subplots(method='PCA', save_path = folder_path, name=os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0])), number=i+1)
+                pointCloudData.generate_bounding_box_information()
+                point_cloud_dataframe = pointCloudData.record_CSV_data(point_cloud_dataframe, 'PCA')
+                point_cloud_dataframe = pointCloudData.record_CSV_data(point_cloud_dataframe, 'Average distance')
+            point_cloud_dataframe = point_cloud_dataframe.round(2)
+            point_cloud_dataframe.loc['PCA mean'] = point_cloud_dataframe.loc[point_cloud_dataframe['Filter Method'] == 'PCA'].mean(numeric_only=True)
+            point_cloud_dataframe.loc['PCA mean', 'Summary figure filepath'] = 'PCA mean'
+            point_cloud_dataframe.loc['Average Distance mean'] = point_cloud_dataframe.loc[point_cloud_dataframe['Filter Method'] == 'Average distance'].mean(numeric_only=True)
+            point_cloud_dataframe.loc['Average Distance mean', 'Summary figure filepath'] = 'Average Distance mean'
+            if point_cloud_dataframe.loc['PCA mean', 'Percent error in summary statistic'] < 30:
+                PCA_summary_statistic_color = greenFill
+            elif point_cloud_dataframe.loc['PCA mean', 'Percent error in summary statistic'] < 100:
+                PCA_summary_statistic_color = yellowFill
+            else:
+                PCA_summary_statistic_color = redFill
+            if point_cloud_dataframe.loc['PCA mean', 'Percent error in chamfer distance'] < 30:
+                PCA_chamfer_distance_color = greenFill
+            elif point_cloud_dataframe.loc['PCA mean', 'Percent error in chamfer distance'] < 100:
+                PCA_chamfer_distance_color = yellowFill
+            else:
+                PCA_chamfer_distance_color = redFill
+            if point_cloud_dataframe.loc['Average Distance mean', 'Percent error in summary statistic'] < 30:
+                Average_distance_summary_statistic_color = greenFill
+            elif point_cloud_dataframe.loc['Average Distance mean', 'Percent error in summary statistic'] < 100:
+                Average_distance_summary_statistic_color = yellowFill
+            else:
+                Average_distance_summary_statistic_color = redFill
+            if point_cloud_dataframe.loc['Average Distance mean', 'Percent error in chamfer distance'] < 30:
+                Average_distance_chamfer_distance_color = greenFill
+            elif point_cloud_dataframe.loc['Average Distance mean', 'Percent error in chamfer distance'] < 100:
+                Average_distance_chamfer_distance_color = yellowFill
+            else:
+                Average_distance_chamfer_distance_color = redFill
+            with pd.ExcelWriter(os.path.join(folder_path, "Point_cloud_data.xlsx"), engine="openpyxl", mode = 'a', if_sheet_exists = 'overlay') as writer:
+                point_cloud_dataframe.to_excel(writer, sheet_name=os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0])), index=False)
+            workbook = load_workbook(os.path.join(folder_path, "Point_cloud_data.xlsx"))
+            workbook[os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0]))][f'H{(runs_per_cloud*2)+2}'].fill = PCA_summary_statistic_color
+            workbook[os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0]))][f'I{(runs_per_cloud*2)+2}'].fill = PCA_chamfer_distance_color
+            workbook[os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0]))][f'H{(runs_per_cloud*2)+3}'].fill = Average_distance_summary_statistic_color
+            workbook[os.path.basename(os.path.normpath(os.path.splitext(point_cloud_file)[0]))][f'I{(runs_per_cloud*2)+3}'].fill = Average_distance_chamfer_distance_color
+            wb._named_styles['Normal'].number_format = '0.00'
+            workbook.save(os.path.join(folder_path, "Point_cloud_data.xlsx"))
             
     
 
