@@ -54,6 +54,7 @@ class PointCloudStructure:
         original_PCA = decomp.PCA(n_components=3)
         original_PCA.fit(np.asarray(self.PointCloud.points))
         self.original_lowest_variance_ratio = original_PCA.explained_variance_ratio_[2]
+        self.viewing_angle = None
         
         if show:
             print("Showing original point cloud")
@@ -118,17 +119,16 @@ class PointCloudStructure:
         
         
         if graph == True:
-            for i in range(3):
-                fig = plt.figure(figsize=(8, 4))
-                ax = plt.axes(projection='3d')
-                ax.plot_surface(self.std_dev_points_pca, self.nb_neighbor_points_pca, np.transpose(self.explained_variance_ratio_data[i, :, :]),
-                                    cmap=cm.coolwarm,
-                                    linewidth=0, antialiased=False)
-                ax.set_title(graph_labels_ratio[i])
-                ax.set_xlabel('Standard deviation ratio')
-                ax.set_ylabel('Number of neighbors')
-                ax.set_zlabel('Variance ratio')
-                ax.view_init(azim=160, elev=30)
+            ax = plt.axes(projection='3d', computed_zorder=False)
+            ax.plot_surface(self.std_dev_points_pca, self.nb_neighbor_points_pca, np.transpose(self.explained_variance_ratio_data[2, :, :] * 10**3),
+                                cmap=cm.coolwarm,
+                                linewidth=0, antialiased=False)
+            ax.scatter(self.best_std_dev_PCA, self.best_nb_neighbors_PCA, self.best_least_variance_ratio * 10**3, s=250, c='r', marker = '*', zorder = 100)
+            ax.set_title(graph_labels_ratio[2])
+            ax.set_xlabel('Standard ratio')
+            ax.set_ylabel('Number of neighbors')
+            ax.set_zlabel('Variance ratio * 1e3')
+            ax.view_init(azim=160, elev=30)
             plt.show()
         return
 
@@ -184,11 +184,11 @@ class PointCloudStructure:
             ax.plot_surface(self.nb_neighbor_points_ad, self.std_dev_points_ad, np.transpose(self.average_distance_data) * 10**4,
                                 cmap=cm.coolwarm,
                                 linewidth=0, antialiased=False)
-            ax.set_title('Average Nearest Neighbor Distance')
+            ax.set_title('Nearest Neighbor Average Distance')
             ax.set_xlabel('Number of neighbors')
-            ax.set_ylabel('Standard deviation')
+            ax.set_ylabel('Standard ratio')
             ax.set_zlabel('Average distance * 1e4')
-            ax.scatter(self.best_nb_neighbors_mean, self.best_std_dev_mean, self.best_mean_distance * 10**4, s=50, c='r', marker = '*', zorder = 100)
+            ax.scatter(self.best_nb_neighbors_mean, self.best_std_dev_mean, self.best_mean_distance * 10**4, s=250, c='r', marker = '*', zorder = 100)
             ax.yaxis.labelpad=10
             ax.xaxis.labelpad=10
             ax.zaxis.labelpad=10
@@ -196,6 +196,18 @@ class PointCloudStructure:
             ax.zaxis.set_major_locator(plt.MaxNLocator(5))
             plt.show()
         return
+    
+    def display_noise_not_noise(self, cloud, ind):
+            noise_cloud = cloud.select_by_index(ind)
+            correct_cloud = cloud.select_by_index(ind, invert=True)
+            noise_cloud.paint_uniform_color([1, 0, 0])
+            correct_cloud.paint_uniform_color([0.4, 0.4 , 0.6])
+            print("Showing noissy point cloud.")
+            print('Noise points are shown in red, correct points are shown in gray.')
+            # if type(self.viewing_angle) != type(None):
+            #     o3d.visualization.draw_geometries([noise_cloud, correct_cloud], view_control=o3d.visualization.ViewControl.convert_from_pinhole_camera_parameters(self.viewing_angle))
+            o3d.visualization.draw_geometries([noise_cloud, correct_cloud])
+            #self.viewing_angle = o3d.visualization.ViewControl.convert_to_pinhole_camera_parameters()
     
     def generate_gaussian_noise(self, mean: float, bounding_box_mult: float, noise_percent: float, show: bool = False) -> None:
         """Generates Gaussian distributed noise for a point cloud.
@@ -208,15 +220,6 @@ class PointCloudStructure:
             noise_percent (float): What percentage of points are moved from their original location.
             show (bool, optional): Whether or not to show the noisy point cloud, with noise points in red and correct points in gray. Defaults to False.
         """    
-            
-        def display_noise_not_noise(cloud, ind):
-            noise_cloud = cloud.select_by_index(ind)
-            correct_cloud = cloud.select_by_index(ind, invert=True)
-            noise_cloud.paint_uniform_color([1, 0, 0])
-            correct_cloud.paint_uniform_color([0.4, 0.4 , 0.6])
-            print("Showing noissy point cloud.")
-            print('Noise points are shown in red, correct points are shown in gray.')
-            o3d.visualization.draw_geometries([noise_cloud, correct_cloud])
         
         self.noise_indeces = []
         points = np.array([1, 1])
@@ -238,7 +241,7 @@ class PointCloudStructure:
         self.noisy_cloud.points = o3d.utility.Vector3dVector(points)
         self.noise_counter = noise_counter
         if show:
-            display_noise_not_noise(self.noisy_cloud, self.noise_indeces)
+            self.display_noise_not_noise(self.noisy_cloud, self.noise_indeces)
         
     def chamfer_distance(self, x: o3d.geometry.PointCloud, y: o3d.geometry.PointCloud) -> float:
         """Calculates the chamfer distance between two point clouds, using a k-nearest-neighbor data structure.
@@ -544,7 +547,7 @@ class PointCloudStructure:
             ax.plot_surface(self.nb_neighbor_points_ad, self.std_dev_points_ad, np.transpose(self.average_distance_data) * 10**4,
                                 cmap=cm.coolwarm,
                                 linewidth=0, antialiased=False, zorder = 0)
-           # ax.scatter(self.best_nb_neighbors_mean, self.best_std_dev_mean, self.best_mean_distance * 10**4, s=50, c='r', marker = '*', zorder = 100)
+            ax.scatter(self.best_nb_neighbors_mean, self.best_std_dev_mean, self.best_mean_distance * 10**4, s=50, c='r', marker = '*', zorder = 100)
             ax.set_title('Nearest Neighbor Average Distance')
             ax.set_xlabel('Number of neighbors')
             ax.set_ylabel('Standard ratio')
@@ -723,12 +726,18 @@ class PointCloudStructure:
         
         pcd_noisy = copy.copy(self.noisy_cloud)
         self.cleaned_cloud, ind = pcd_noisy.remove_statistical_outlier(nb_neighbors, std_ratio)
+        noise_indeces = []
+        removed_points = 0
+        for point in range(self.original_number_of_points):
+            if point not in ind:
+                removed_points += 1
+            elif point in self.noise_indeces:
+                noise_indeces.append(point - removed_points)
         if show == True:
-            self.cleaned_cloud.paint_uniform_color([0.4, 0.4, 0.6])
             print("Showing noisy point cloud")
-            o3d.visualization.draw_geometries([pcd_noisy])
+            self.display_noise_not_noise(self.noisy_cloud, self.noise_indeces)
             print("Showing filtered point cloud")
-            o3d.visualization.draw_geometries([self.cleaned_cloud])
+            self.display_noise_not_noise(self.cleaned_cloud, noise_indeces)
     
     def align_cleaned_cloud_and_original_cloud(self, voxel_size: float = .05, show:bool = False) -> None:
         """Aligns the cleaned cloud and the original cloud using the ICP algorithm. This method is taken directly from Open3D's documentation

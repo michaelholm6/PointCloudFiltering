@@ -24,7 +24,13 @@ if __name__ == "__main__":
     
     # # point_cloud_files = [point_cloud for point_cloud in point_cloud_files if 'pcd116.ply' in point_cloud]
     
-    # # point_cloud = o3d.io.read_point_cloud(r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\Upsampled_clouds\upsampled_pcd_98.pcd')
+    point_cloud = pcc.PointCloudStructure(pointCloudFilePath=r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds\pcd900.ply', show=True)
+    
+    point_cloud.generate_gaussian_noise(0, .05, .2, True)
+    
+    point_cloud.clean_noisy_cloud(100, 3, show=True)
+    
+    point_cloud.clean_noisy_cloud(5, .000001, show=True)
     
     # # view_point_cloud(point_cloud)
     
@@ -32,9 +38,9 @@ if __name__ == "__main__":
         
     # #     print(point_cloud_file)
     
-         torch_point_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\torch\torch\pset-torch-lfd-unfiltered-s13.ply", show=True)
+        # torch_point_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\torch\torch\pset-torch-lfd-unfiltered-s13.ply", show=True)
          
-         statue_point_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\statue\statue\pset-statue-mve-unfiltered.ply", show=True)
+        # statue_point_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\statue\statue\pset-statue-mve-unfiltered.ply", show=True)
          
         #  torch_point_cloud.insert_custom_noisy_point_cloud(r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\torch\torch\pset-torch-lfd-unfiltered-s13.ply')
          

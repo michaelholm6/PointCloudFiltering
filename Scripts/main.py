@@ -2,6 +2,8 @@ import Point_cloud_class as pcc
 import cProfile
 import pstats
 import winsound
+import random
+import time
 
 def main(clouds_to_select, runs_per_cloud, input_folder_path, noise_mean, std_dev_distance_mult, noise_percent, nb_neighbors_upper, nb_neighbors_samples, std_dev_upper, std_dev_samples, nb_neighbors_lower, std_dev_lower, folder_path):
         pointCloudCollection = pcc.PointCloudDatabase(input_folder_path, noise_mean, std_dev_distance_mult, noise_percent, nb_neighbors_upper,
@@ -15,7 +17,7 @@ if __name__ == "__main__":
     # main(30, 10, r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds', 0, .1, .20, 100, 10, 3, 10, 1, .00001, '.10.20')
     # main(30, 10, r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds', 0, .05, .10, 100, 10, 3, 10, 1, .00001, '.05.10')
     # main(30, 10, r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds', 0, .05, .30, 100, 10, 3, 10, 1, .00001, '.05.30')
-    main(30, 10, r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds', 0, .01, .20, 100, 10, 3, 10, 1, .00001, '.01.20_')
+    #main(30, 10, r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds', 0, .01, .20, 100, 10, 3, 10, 1, .00001, '.01.20_')
     
     # main(r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds', 0, .05, .20, 100, 5, 3, 5, 1, .00001, 'test5x5')
     # main(r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds', 0, .05, .20, 100, 7, 3, 7, 1, .00001, 'test7x7')
@@ -29,14 +31,13 @@ if __name__ == "__main__":
     # stream = open('output.txt', 'w')
     # p = pstats.Stats("my_func_stats", stream=stream)
     # p.sort_stats("cumulative").print_stats()
-        
-    
-    
-    #    test_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\upsampled_cloud.pcd")
-    #    test_cloud.generate_gaussian_noise(0, 100, .2, True)
-    #    #test_cloud.generate_chamfer_distance_data(100, 10, 3, 8, 1, .00001, True)
-    #    test_cloud.generate_statistical_removal_and_average_distance_data(100, 10, 3, 10, 1, .00001, graph=True)
-    #    test_cloud.clean_noisy_cloud(method='Average distance', show=True)
+    random.seed(time.time())
+    test_cloud = pcc.PointCloudStructure(pointCloudFilePath=r"C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds\pcd784.ply")
+    test_cloud.generate_gaussian_noise(0, .05, .2, True)
+    #test_cloud.generate_statistical_removal_and_PCA_variance_data(100, 32, 3, 32, 1, .00001, graph=True)
+    test_cloud.generate_statistical_removal_and_average_distance_data(200, 32, 6, 32, 1, .000001, graph=True)
+    test_cloud.clean_noisy_cloud(method='Average distance', show=True)
+    #test_cloud.clean_noisy_cloud(method='PCA', show=True)
 
 #     test_cloud_stl = pcc.PointCloudStructure(stl_path='test.stl', stl_sample_points=1000)
 #     test_cloud_stl.generate_gaussian_noise(0, 3, .20, True)
