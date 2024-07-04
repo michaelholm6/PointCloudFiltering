@@ -24,13 +24,13 @@ if __name__ == "__main__":
     
     # # point_cloud_files = [point_cloud for point_cloud in point_cloud_files if 'pcd116.ply' in point_cloud]
     
-    point_cloud = pcc.PointCloudStructure(pointCloudFilePath=r'C:\Users\Michael\Desktop\VRAC\Boeing Digital Twin\Journal Article\Code\PointCloudFiltering\3D_files\MVP Point Clouds\pcd900.ply', show=True)
+    # for i in range(0,2400,50):
+         point_cloud = pcc.PointCloudStructure(pointCloudFilePath=f'C:/Users/Michael/Desktop/VRAC/Boeing Digital Twin/Journal Article/Code/PointCloudFiltering/3D_files/MVP Point Clouds/pcd2100.ply', show=True)
+    #     print(f'pcd{i}')
     
-    point_cloud.generate_gaussian_noise(0, .05, .2, True)
+    # point_cloud.clean_noisy_cloud(100, 3, show=True)
     
-    point_cloud.clean_noisy_cloud(100, 3, show=True)
-    
-    point_cloud.clean_noisy_cloud(5, .000001, show=True)
+    # point_cloud.clean_noisy_cloud(5, .000001, show=True)
     
     # # view_point_cloud(point_cloud)
     
@@ -68,7 +68,7 @@ if __name__ == "__main__":
          
         #  statue_point_cloud.generate_statistical_removal_and_PCA_variance_data(100, 10, 3, 10, 1, .00001, graph=False)
          
-        #  print("Done with statue PCA")
+        #print("Done with statue PCA")
          
         #  torch_point_cloud.clean_noisy_cloud(method='Average distance', show=True)
          
